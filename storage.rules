@@ -1,0 +1,22 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn() && request.auth.token.role is string ? request.auth.token.role : "volunteer";
+    }
+
+    function orgId() {
+      return signedIn() && request.auth.token.orgId is string ? request.auth.token.orgId : "";
+    }
+
+    match /organizations/{orgPathId}/{allPaths=**} {
+      allow read: if signedIn() && orgId() == orgPathId;
+      allow write: if signedIn() && orgId() == orgPathId && (role() == "ngo_admin" || role() == "field_worker");
+    }
+  }
+}

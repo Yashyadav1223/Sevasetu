@@ -1,0 +1,102 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function role() {
+      return signedIn() && request.auth.token.role is string ? request.auth.token.role : "volunteer";
+    }
+
+    function orgId() {
+      return signedIn() && request.auth.token.orgId is string ? request.auth.token.orgId : "";
+    }
+
+    function isAdminForOrg(targetOrgId) {
+      return signedIn() && role() == "ngo_admin" && orgId() == targetOrgId;
+    }
+
+    function isFieldWorkerForOrg(targetOrgId) {
+      return signedIn() && role() == "field_worker" && orgId() == targetOrgId;
+    }
+
+    match /organizations/{organizationId} {
+      allow read: if signedIn() && orgId() == organizationId;
+      allow create, update, delete: if isAdminForOrg(organizationId);
+    }
+
+    match /needs/{needId} {
+      allow read: if signedIn() && (
+        isAdminForOrg(resource.data.orgId) ||
+        isFieldWorkerForOrg(resource.data.orgId) ||
+        (role() == "volunteer" && orgId() == resource.data.orgId)
+      );
+      allow create: if signedIn() && (
+        isAdminForOrg(request.resource.data.orgId) ||
+        isFieldWorkerForOrg(request.resource.data.orgId)
+      );
+      allow update: if signedIn() && (
+        isAdminForOrg(resource.data.orgId) ||
+        (role() == "field_worker" && request.resource.data.diff(resource.data).affectedKeys().hasOnly(["updatedAt", "status"]))
+      );
+      allow delete: if isAdminForOrg(resource.data.orgId);
+    }
+
+    match /volunteers/{volunteerId} {
+      allow read: if signedIn() && (
+        request.auth.uid == resource.data.userId ||
+        isAdminForOrg(resource.data.orgId)
+      );
+      allow create: if signedIn() &&
+        request.auth.uid == request.resource.data.userId &&
+        orgId() == request.resource.data.orgId;
+      allow update: if signedIn() && (
+        request.auth.uid == resource.data.userId ||
+        isAdminForOrg(resource.data.orgId)
+      );
+      allow delete: if isAdminForOrg(resource.data.orgId);
+    }
+
+    match /assignments/{assignmentId} {
+      allow read: if signedIn() && (
+        request.auth.uid == resource.data.volunteerUserId ||
+        isAdminForOrg(resource.data.orgId)
+      );
+      allow create: if signedIn() && isAdminForOrg(request.resource.data.orgId);
+      allow update: if signedIn() && (
+        isAdminForOrg(resource.data.orgId) ||
+        (
+          request.auth.uid == resource.data.volunteerUserId &&
+          request.resource.data.diff(resource.data).affectedKeys().hasOnly([
+            "status",
+            "completedAt",
+            "completionNotes",
+            "hoursLogged"
+          ])
+        )
+      );
+      allow delete: if isAdminForOrg(resource.data.orgId);
+    }
+
+    match /survey_uploads/{uploadId} {
+      allow read: if signedIn() && isAdminForOrg(resource.data.orgId);
+      allow create: if signedIn() && isAdminForOrg(request.resource.data.orgId);
+      allow update, delete: if signedIn() && isAdminForOrg(resource.data.orgId);
+    }
+
+    match /field_reports/{reportId} {
+      allow read: if signedIn() && isAdminForOrg(resource.data.orgId);
+      allow create: if signedIn() && (
+        isFieldWorkerForOrg(request.resource.data.orgId) ||
+        isAdminForOrg(request.resource.data.orgId)
+      );
+      allow update, delete: if signedIn() && isAdminForOrg(resource.data.orgId);
+    }
+
+    match /gemini_cache/{cacheId} {
+      allow read, write: if false;
+    }
+  }
+}

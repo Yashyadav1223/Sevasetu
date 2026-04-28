@@ -1,0 +1,49 @@
+# Environment variables
+.env*
+!.env.example
+.env.local
+
+# Next.js
+.next
+.next-*.log
+out
+
+# Node.js
+node_modules
+functions/node_modules
+
+# Build outputs
+dist
+coverage
+functions/lib
+*.tsbuildinfo
+
+# Firebase
+firebase-debug.log
+firestore-debug.log
+.firebase
+
+# IDE and editor
+.vscode
+.idea
+*.swp
+*.swo
+*.swn
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Temporary and local files
+*.local
+scripts/demo-seed-preview.json
+
+# Cache
+.turbo
+.eslintcache
