@@ -2,9 +2,18 @@
 
 import { useState } from "react";
 import { signInWithPopup, signOut } from "firebase/auth";
+import { useRouter } from "next/navigation";
 import { ShieldCheck, UserRound, UsersRound } from "lucide-react";
 import { auth, firebaseConfigured, googleProvider } from "@/lib/firebase";
 import type { Role } from "@/types";
+
+const DEMO_ROLE_KEY = "sevasetu_demo_role";
+const demoAuthFallbackEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO_AUTH !== "false";
+const roleHome: Record<Role, string> = {
+  ngo_admin: "/dashboard",
+  volunteer: "/volunteer",
+  field_worker: "/field-report"
+};
 
 const roles: Array<{ role: Role; title: string; helper: string }> = [
   {
@@ -25,24 +34,41 @@ const roles: Array<{ role: Role; title: string; helper: string }> = [
 ];
 
 export function AuthPanel() {
+  const router = useRouter();
   const [role, setRole] = useState<Role>("ngo_admin");
-  const [status, setStatus] = useState(firebaseConfigured ? "Firebase is configured." : "Demo mode uses local role switching until Firebase keys are added.");
+  const [status, setStatus] = useState(
+    demoAuthFallbackEnabled
+      ? "Choose a role, then continue with Google for the demo."
+      : "Firebase is configured. Role access requires Firebase custom claims."
+  );
 
   async function login() {
+    const params = new URLSearchParams(window.location.search);
+    const nextPath = params.get("next") || roleHome[role];
+
     if (!firebaseConfigured) {
+      localStorage.setItem(DEMO_ROLE_KEY, role);
       setStatus(`Demo signed in as ${role.replace("_", " ")}.`);
+      router.push(nextPath);
       return;
     }
 
     try {
       await signInWithPopup(auth, googleProvider);
-      setStatus(`Signed in. Assign the ${role} custom claim from your admin console or Cloud Function.`);
+      if (demoAuthFallbackEnabled) {
+        localStorage.setItem(DEMO_ROLE_KEY, role);
+        setStatus(`Signed in as ${role.replace("_", " ")} for demo access.`);
+        router.push(nextPath);
+      } else {
+        setStatus(`Signed in. Ask the Firebase admin to assign the ${role} custom claim.`);
+      }
     } catch (error) {
       setStatus(error instanceof Error ? error.message : "Sign-in failed.");
     }
   }
 
   async function logout() {
+    localStorage.removeItem(DEMO_ROLE_KEY);
     if (firebaseConfigured) await signOut(auth);
     setStatus("Signed out.");
   }
@@ -52,7 +78,7 @@ export function AuthPanel() {
       <div>
         <h1 className="text-2xl font-semibold text-ink">Role-Based Access</h1>
         <p className="mt-2 text-sm leading-6 text-ink/65">
-          Firebase Authentication handles identity. Firestore rules enforce coordinator, volunteer, and field-worker boundaries with custom claims.
+          Firebase Authentication handles identity. This demo uses the selected role for access; production deployments can disable this and enforce custom claims.
         </p>
       </div>
 

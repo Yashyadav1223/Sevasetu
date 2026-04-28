@@ -7,6 +7,9 @@ import { LoadingBlock } from "@/components/LoadingBlock";
 import { auth, firebaseConfigured } from "@/lib/firebase";
 import type { Role } from "@/types";
 
+const DEMO_ROLE_KEY = "sevasetu_demo_role";
+const demoAuthFallbackEnabled = process.env.NEXT_PUBLIC_ENABLE_DEMO_AUTH !== "false";
+
 export function RouteGuard({
   allowedRoles,
   children
@@ -30,7 +33,9 @@ export function RouteGuard({
       }
 
       const token = await user.getIdTokenResult();
-      const role = token.claims.role;
+      const claimRole = token.claims.role;
+      const demoRole = demoAuthFallbackEnabled ? localStorage.getItem(DEMO_ROLE_KEY) : null;
+      const role = typeof claimRole === "string" ? claimRole : demoRole;
       setStatus(typeof role === "string" && allowedRoles.includes(role as Role) ? "allowed" : "forbidden");
     });
   }, [allowedRoles, pathname, router]);
@@ -43,7 +48,7 @@ export function RouteGuard({
         <p className="text-sm font-semibold uppercase tracking-wide text-rose">403</p>
         <h1 className="mt-2 text-2xl font-semibold text-ink">This role cannot access this page</h1>
         <p className="mt-2 text-sm leading-6 text-ink/65">
-          Ask the Firebase admin to assign the correct custom claim for your account.
+          Go to Demo Login, choose the role for this walkthrough, and continue with Google again.
         </p>
       </section>
     );
